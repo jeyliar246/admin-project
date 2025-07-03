@@ -101,23 +101,48 @@ const DeliveryManagement = () => {
   const fetchInstantDeliveries = async () => {
     try {
       setLoading(true)
+      
+      // First fetch instant deliveries
       let query = supabase
         .from('instant_deliveries')
-        .select(`
-          *,
-          vendor:vendors(name, email, phone),
-          user:users(email)
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
 
       if (statusFilter !== 'all') {
         query = query.eq('status', statusFilter)
       }
 
-      const { data, error } = await query
+      const { data: deliveriesData, error: deliveriesError } = await query
 
-      if (error) throw error
-      setInstantDeliveries(data || [])
+      if (deliveriesError) throw deliveriesError
+
+      // Then fetch related vendors and users for the deliveries
+      if (deliveriesData && deliveriesData.length > 0) {
+        const vendorIds = [...new Set(deliveriesData.map(d => d.vendor_id))]
+        const userIds = [...new Set(deliveriesData.map(d => d.user_id))]
+
+        const [{ data: vendorsData }, { data: usersData }] = await Promise.all([
+          supabase
+            .from('vendors')
+            .select('id, name, email, phone')
+            .in('id', vendorIds),
+          supabase
+            .from('users')
+            .select('id, email')
+            .in('id', userIds)
+        ])
+
+        // Combine the data
+        const enrichedDeliveries = deliveriesData.map(delivery => ({
+          ...delivery,
+          vendor: vendorsData?.find(v => v.id === delivery.vendor_id),
+          user: usersData?.find(u => u.id === delivery.user_id)
+        }))
+
+        setInstantDeliveries(enrichedDeliveries)
+      } else {
+        setInstantDeliveries([])
+      }
     } catch (err) {
       console.error('Error fetching instant deliveries:', err)
       setError(err instanceof Error ? err.message : 'Failed to fetch instant deliveries')
