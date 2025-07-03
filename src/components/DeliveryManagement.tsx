@@ -11,10 +11,32 @@ interface Delivery {
   completed_at: string | null
   created_at: string
   updated_at: string
+  users?: {
+    email: string
+  }
+}
+
+interface InstantDelivery {
+  id: number
+  user_id: string
+  vendor_id: number
+  status: 'pending' | 'in_transit' | 'completed' | 'cancelled'
+  pickup_location: string
+  delivery_location: string
+  description: string
+  estimated_time: string
+  priority: 'normal' | 'high' | 'urgent'
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+  vendor?: {
+    name: string
+  }
 }
 
 const DeliveryManagement = () => {
   const [deliveries, setDeliveries] = useState<Delivery[]>([])
+  const [instantDeliveries, setInstantDeliveries] = useState<InstantDelivery[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -35,8 +57,12 @@ const DeliveryManagement = () => {
   ]
 
   useEffect(() => {
-    fetchDeliveries()
-  }, [statusFilter])
+    if (activeTab === 'instant') {
+      fetchInstantDeliveries()
+    } else {
+      fetchDeliveries()
+    }
+  }, [statusFilter, activeTab])
 
   const fetchDeliveries = async () => {
     try {
@@ -67,6 +93,33 @@ const DeliveryManagement = () => {
     }
   }
 
+  const fetchInstantDeliveries = async () => {
+    try {
+      setLoading(true)
+      let query = supabase
+        .from('instant_deliveries')
+        .select(`
+          *,
+          vendor:vendors(name)
+        `)
+        .order('created_at', { ascending: false })
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter)
+      }
+
+      const { data, error } = await query
+
+      if (error) throw error
+      setInstantDeliveries(data || [])
+    } catch (err) {
+      console.error('Error fetching instant deliveries:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch instant deliveries')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const updateDeliveryStatus = async (id: number, newStatus: string) => {
     try {
       const { error } = await supabase
@@ -87,6 +140,25 @@ const DeliveryManagement = () => {
     }
   }
 
+  const updateInstantDeliveryStatus = async (id: number, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('instant_deliveries')
+        .update({ 
+          status: newStatus,
+          completed_at: newStatus === 'completed' ? new Date().toISOString() : null
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      
+      fetchInstantDeliveries()
+    } catch (err) {
+      console.error('Error updating instant delivery:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update instant delivery')
+    }
+  }
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'completed':
@@ -102,6 +174,19 @@ const DeliveryManagement = () => {
     }
   }
 
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return 'bg-red-100 text-red-800'
+      case 'high':
+        return 'bg-orange-100 text-orange-800'
+      case 'normal':
+        return 'bg-blue-100 text-blue-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
+    }
+  }
+
   if (error) {
     return (
       <div className="p-4 bg-red-50 text-red-600 rounded-md">
@@ -109,6 +194,83 @@ const DeliveryManagement = () => {
       </div>
     )
   }
+
+  const renderInstantDeliveriesTable = () => (
+    <table className="min-w-full divide-y divide-gray-200">
+      <thead className="bg-gray-50">
+        <tr>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Delivery Info
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Vendor
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Locations
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Status
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Priority
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Est. Time
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Actions
+          </th>
+        </tr>
+      </thead>
+      <tbody className="bg-white divide-y divide-gray-200">
+        {instantDeliveries.map((delivery) => (
+          <tr key={delivery.id} className="hover:bg-gray-50 transition-colors duration-200">
+            <td className="px-6 py-4 whitespace-nowrap">
+              <div>
+                <div className="text-sm font-medium text-gray-900">#{delivery.id}</div>
+                <div className="text-xs text-gray-400">{new Date(delivery.created_at).toLocaleDateString()}</div>
+              </div>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+              <div className="text-sm font-medium text-gray-900">{delivery.vendor?.name}</div>
+            </td>
+            <td className="px-6 py-4">
+              <div className="text-sm text-gray-900">
+                <div className="font-medium">From: {delivery.pickup_location}</div>
+                <div className="text-gray-500">To: {delivery.delivery_location}</div>
+              </div>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(delivery.status)}`}>
+                {delivery.status.charAt(0).toUpperCase() + delivery.status.slice(1)}
+              </span>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(delivery.priority)}`}>
+                {delivery.priority.charAt(0).toUpperCase() + delivery.priority.slice(1)}
+              </span>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+              {delivery.estimated_time}
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+              <div className="flex space-x-2">
+                <button className="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100">
+                  <Eye className="w-4 h-4" />
+                </button>
+                <button className="text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-100">
+                  <Edit className="w-4 h-4" />
+                </button>
+                <button className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  )
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -174,78 +336,80 @@ const DeliveryManagement = () => {
       {/* Deliveries Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Delivery Info
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Customer
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Route
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Amount
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Driver
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {deliveries.map((delivery) => (
-                <tr key={delivery.id} className="hover:bg-gray-50 transition-colors duration-200">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{delivery.id}</div>
-                      <div className="text-sm text-gray-500">{delivery.location}</div>
-                      <div className="text-xs text-gray-400">{new Date(delivery.created_at).toLocaleDateString()}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{delivery.email}</div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900">
-                      <div className="font-medium">From: {delivery.location}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(delivery.status)}`}>
-                      {delivery.status.charAt(0).toUpperCase() + delivery.status.slice(1)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {/* Assuming amount is not available in the delivery data */}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {/* Assuming driver is not available in the delivery data */}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button className="text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-100">
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100">
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
+          {activeTab === 'instant' ? renderInstantDeliveriesTable() : (
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Delivery Info
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Route
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Driver
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {deliveries.map((delivery) => (
+                  <tr key={delivery.id} className="hover:bg-gray-50 transition-colors duration-200">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">{delivery.id}</div>
+                        <div className="text-sm text-gray-500">{delivery.location}</div>
+                        <div className="text-xs text-gray-400">{new Date(delivery.created_at).toLocaleDateString()}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">{delivery.users?.email}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-900">
+                        <div className="font-medium">From: {delivery.location}</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(delivery.status)}`}>
+                        {delivery.status.charAt(0).toUpperCase() + delivery.status.slice(1)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {/* Assuming amount is not available in the delivery data */}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {/* Assuming driver is not available in the delivery data */}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex space-x-2">
+                        <button className="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                        <button className="text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-100">
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100">
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
         
         {/* Pagination */}
