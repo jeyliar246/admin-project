@@ -30,4 +30,19 @@ export async function fetchTables() {
     console.error('Error fetching tables:', error)
     return []
   }
+}
+
+export const clearAllData = async () => {
+  try {
+    // Clear data in reverse order of dependencies
+    await supabase.from('payments').delete().neq('id', 0)
+    await supabase.from('deliveries').delete().neq('id', 0)
+    await supabase.from('vendors').delete().neq('id', 0)
+    await supabase.from('users').delete().neq('id', 0)
+    
+    return { success: true, message: 'All data cleared successfully' }
+  } catch (error) {
+    console.error('Error clearing data:', error)
+    return { success: false, message: 'Error clearing data', error }
+  }
 } 

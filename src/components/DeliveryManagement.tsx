@@ -1,9 +1,25 @@
-import React, { useState } from 'react';
-import { Search, Filter, Plus, Eye, Edit, Trash2, Download } from 'lucide-react';
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
+import { Search, Filter, Plus, Eye, Edit, Trash2, Download } from 'lucide-react'
 
-const DeliveryManagement: React.FC = () => {
-  const [activeTab, setActiveTab] = useState('all');
-  const [searchTerm, setSearchTerm] = useState('');
+interface Delivery {
+  id: number
+  user_id: string
+  status: 'pending' | 'in_transit' | 'completed' | 'cancelled'
+  location: string
+  description: string
+  completed_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+const DeliveryManagement = () => {
+  const [deliveries, setDeliveries] = useState<Delivery[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [activeTab, setActiveTab] = useState('all')
+  const [searchTerm, setSearchTerm] = useState('')
 
   const tabs = [
     { id: 'all', label: 'All Deliveries', count: 2847 },
@@ -16,80 +32,83 @@ const DeliveryManagement: React.FC = () => {
     { id: 'import-request', label: 'Import Request', count: 89 },
     { id: 'export-request', label: 'Export Request', count: 78 },
     { id: 'bulk', label: 'Bulk Delivery', count: 277 }
-  ];
+  ]
 
-  const deliveries = [
-    {
-      id: 'DEL001',
-      type: 'Instant',
-      customer: 'John Doe',
-      vendor: 'FastFood Co.',
-      pickup: 'Downtown Store',
-      destination: '123 Main St',
-      status: 'Delivered',
-      amount: '₦4,599',
-      date: '2024-01-15',
-      driver: 'Mike Wilson'
-    },
-    {
-      id: 'DEL002',
-      type: 'Same Day',
-      customer: 'Jane Smith',
-      vendor: 'Electronics Plus',
-      pickup: 'Tech Center',
-      destination: '456 Oak Ave',
-      status: 'In Transit',
-      amount: '₦15,675',
-      date: '2024-01-15',
-      driver: 'Sarah Johnson'
-    },
-    {
-      id: 'DEL003',
-      type: 'Interstate',
-      customer: 'Corporate Ltd',
-      vendor: 'Supply Chain Pro',
-      pickup: 'Warehouse A',
-      destination: 'Business District',
-      status: 'Pending',
-      amount: '₦78,950',
-      date: '2024-01-14',
-      driver: 'David Brown'
-    },
-    {
-      id: 'DEL004',
-      type: 'Username City',
-      customer: 'Alice Cooper',
-      vendor: 'Local Mart',
-      pickup: 'City Center',
-      destination: '789 Pine St',
-      status: 'Delivered',
-      amount: '₦2,345',
-      date: '2024-01-14',
-      driver: 'Emma Davis'
-    },
-    {
-      id: 'DEL005',
-      type: 'Bulk',
-      customer: 'Retail Chain',
-      vendor: 'Wholesale Hub',
-      pickup: 'Distribution Center',
-      destination: 'Multiple Locations',
-      status: 'Processing',
-      amount: '₦234,500',
-      date: '2024-01-13',
-      driver: 'Team Alpha'
+  useEffect(() => {
+    fetchDeliveries()
+  }, [statusFilter])
+
+  const fetchDeliveries = async () => {
+    try {
+      setLoading(true)
+      let query = supabase
+        .from('deliveries')
+        .select(`
+          *,
+          users (
+            email
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (statusFilter !== 'all') {
+        query = query.eq('status', statusFilter)
+      }
+
+      const { data, error } = await query
+
+      if (error) throw error
+      setDeliveries(data || [])
+    } catch (err) {
+      console.error('Error fetching deliveries:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch deliveries')
+    } finally {
+      setLoading(false)
     }
-  ];
+  }
+
+  const updateDeliveryStatus = async (id: number, newStatus: string) => {
+    try {
+      const { error } = await supabase
+        .from('deliveries')
+        .update({ 
+          status: newStatus,
+          completed_at: newStatus === 'completed' ? new Date().toISOString() : null
+        })
+        .eq('id', id)
+
+      if (error) throw error
+      
+      // Refresh deliveries after update
+      fetchDeliveries()
+    } catch (err) {
+      console.error('Error updating delivery:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update delivery')
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'Delivered': return 'bg-green-100 text-green-800';
-      case 'In Transit': return 'bg-blue-100 text-blue-800';
-      case 'Pending': return 'bg-yellow-100 text-yellow-800';
-      case 'Processing': return 'bg-purple-100 text-purple-800';
-      default: return 'bg-gray-100 text-gray-800';
+      case 'completed':
+        return 'bg-green-100 text-green-800'
+      case 'in_transit':
+        return 'bg-blue-100 text-blue-800'
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800'
+      case 'cancelled':
+        return 'bg-red-100 text-red-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
     }
-  };
+  }
+
+  if (error) {
+    return (
+      <div className="p-4 bg-red-50 text-red-600 rounded-md">
+        Error: {error}
+      </div>
+    )
+  }
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -187,30 +206,28 @@ const DeliveryManagement: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">{delivery.id}</div>
-                      <div className="text-sm text-gray-500">{delivery.type}</div>
-                      <div className="text-xs text-gray-400">{delivery.date}</div>
+                      <div className="text-sm text-gray-500">{delivery.location}</div>
+                      <div className="text-xs text-gray-400">{new Date(delivery.created_at).toLocaleDateString()}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">{delivery.customer}</div>
-                    <div className="text-sm text-gray-500">{delivery.vendor}</div>
+                    <div className="text-sm font-medium text-gray-900">{delivery.email}</div>
                   </td>
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900">
-                      <div className="font-medium">From: {delivery.pickup}</div>
-                      <div className="text-gray-500">To: {delivery.destination}</div>
+                      <div className="font-medium">From: {delivery.location}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(delivery.status)}`}>
-                      {delivery.status}
+                      {delivery.status.charAt(0).toUpperCase() + delivery.status.slice(1)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {delivery.amount}
+                    {/* Assuming amount is not available in the delivery data */}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {delivery.driver}
+                    {/* Assuming driver is not available in the delivery data */}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <div className="flex space-x-2">
@@ -271,7 +288,7 @@ const DeliveryManagement: React.FC = () => {
         </div>
       </div>
     </div>
-  );
-};
+  )
+}
 
-export default DeliveryManagement;
+export default DeliveryManagement

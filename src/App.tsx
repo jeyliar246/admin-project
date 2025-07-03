@@ -8,6 +8,7 @@ import StoreManagement from './components/StoreManagement'
 import SupportManagement from './components/SupportManagement'
 import UserManagement from './components/UserManagement'
 import VendorManagement from './components/VendorManagement'
+import BulkDelivery from './components/BulkDelivery'
 
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth()
@@ -42,6 +43,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <DeliveryManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bulk-delivery"
+            element={
+              <ProtectedRoute>
+                <BulkDelivery />
               </ProtectedRoute>
             }
           />

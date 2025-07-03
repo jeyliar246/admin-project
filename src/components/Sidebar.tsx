@@ -10,7 +10,8 @@ import {
   LogOut,
   Menu,
   X,
-  Building2
+  Building2,
+  PackageOpen
 } from 'lucide-react'
 
 interface SidebarProps {
@@ -34,6 +35,7 @@ const Sidebar = ({ isOpen, setIsOpen }: SidebarProps) => {
   const navigation = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Deliveries', href: '/delivery', icon: Truck },
+    { name: 'Bulk Delivery', href: '/bulk-delivery', icon: PackageOpen },
     { name: 'Vendors', href: '/vendors', icon: Building2 },
     { name: 'Stores', href: '/stores', icon: Store },
     { name: 'Users', href: '/users', icon: Users },
