@@ -17,20 +17,25 @@ interface Delivery {
 }
 
 interface InstantDelivery {
-  id: number
+  id: bigint
   user_id: string
   vendor_id: number
   status: 'pending' | 'in_transit' | 'completed' | 'cancelled'
   pickup_location: string
   delivery_location: string
-  description: string
-  estimated_time: string
+  description: string | null
+  estimated_time: string | null
   priority: 'normal' | 'high' | 'urgent'
   completed_at: string | null
   created_at: string
   updated_at: string
   vendor?: {
     name: string
+    email: string
+    phone: string
+  }
+  user?: {
+    email: string
   }
 }
 
@@ -100,7 +105,8 @@ const DeliveryManagement = () => {
         .from('instant_deliveries')
         .select(`
           *,
-          vendor:vendors(name)
+          vendor:vendors(name, email, phone),
+          user:users(email)
         `)
         .order('created_at', { ascending: false })
 
@@ -200,25 +206,31 @@ const DeliveryManagement = () => {
       <thead className="bg-gray-50">
         <tr>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Delivery Info
+            Delivery ID
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Pickup Location
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Delivery Location
+          </th>
+          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+            Description
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
             Vendor
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Locations
-          </th>
-          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Status
+            Customer
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
             Priority
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Est. Time
+            Status
           </th>
           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-            Actions
+            Created
           </th>
         </tr>
       </thead>
@@ -226,19 +238,30 @@ const DeliveryManagement = () => {
         {instantDeliveries.map((delivery) => (
           <tr key={delivery.id} className="hover:bg-gray-50 transition-colors duration-200">
             <td className="px-6 py-4 whitespace-nowrap">
-              <div>
-                <div className="text-sm font-medium text-gray-900">#{delivery.id}</div>
-                <div className="text-xs text-gray-400">{new Date(delivery.created_at).toLocaleDateString()}</div>
+              <div className="text-sm font-medium text-gray-900">#{delivery.id.toString()}</div>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+              <div className="text-sm text-gray-900">{delivery.pickup_location}</div>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+              <div className="text-sm text-gray-900">{delivery.delivery_location}</div>
+            </td>
+            <td className="px-6 py-4">
+              <div className="text-sm text-gray-900">{delivery.description}</div>
+            </td>
+            <td className="px-6 py-4 whitespace-nowrap">
+              <div className="text-sm text-gray-900">
+                <div>{delivery.vendor?.name}</div>
+                <div className="text-xs text-gray-500">{delivery.vendor?.phone}</div>
               </div>
             </td>
             <td className="px-6 py-4 whitespace-nowrap">
-              <div className="text-sm font-medium text-gray-900">{delivery.vendor?.name}</div>
+              <div className="text-sm text-gray-900">{delivery.user?.email}</div>
             </td>
-            <td className="px-6 py-4">
-              <div className="text-sm text-gray-900">
-                <div className="font-medium">From: {delivery.pickup_location}</div>
-                <div className="text-gray-500">To: {delivery.delivery_location}</div>
-              </div>
+            <td className="px-6 py-4 whitespace-nowrap">
+              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(delivery.priority)}`}>
+                {delivery.priority.charAt(0).toUpperCase() + delivery.priority.slice(1)}
+              </span>
             </td>
             <td className="px-6 py-4 whitespace-nowrap">
               <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(delivery.status)}`}>
@@ -246,24 +269,8 @@ const DeliveryManagement = () => {
               </span>
             </td>
             <td className="px-6 py-4 whitespace-nowrap">
-              <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(delivery.priority)}`}>
-                {delivery.priority.charAt(0).toUpperCase() + delivery.priority.slice(1)}
-              </span>
-            </td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-              {delivery.estimated_time}
-            </td>
-            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-              <div className="flex space-x-2">
-                <button className="text-blue-600 hover:text-blue-900 p-1 rounded-full hover:bg-blue-100">
-                  <Eye className="w-4 h-4" />
-                </button>
-                <button className="text-gray-600 hover:text-gray-900 p-1 rounded-full hover:bg-gray-100">
-                  <Edit className="w-4 h-4" />
-                </button>
-                <button className="text-red-600 hover:text-red-900 p-1 rounded-full hover:bg-red-100">
-                  <Trash2 className="w-4 h-4" />
-                </button>
+              <div className="text-sm text-gray-500">
+                {new Date(delivery.created_at).toLocaleDateString()}
               </div>
             </td>
           </tr>

@@ -29,10 +29,11 @@ create table public.instant_deliveries (
     delivery_location text not null,
     description text,
     estimated_time interval,
-    priority text check (status in ('normal', 'high', 'urgent')) default 'normal',
+    priority text check (priority in ('normal', 'high', 'urgent')) default 'normal',
     completed_at timestamp with time zone,
     created_at timestamp with time zone default timezone('utc'::text, now()) not null,
-    updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+    updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+    FOREIGN KEY (vendor_id) REFERENCES public.vendors(id)
 );
 
 -- Create deliveries table
